@@ -1,7 +1,23 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class AuthService {
-  static final FirebaseAuth _auth = FirebaseAuth.instance;
+  /// Resolves FirebaseAuth lazily and reports a readable [AuthException] when
+  /// the local Firebase configuration is missing.
+  ///
+  /// Reading `FirebaseAuth.instance` before `Firebase.initializeApp()` has
+  /// completed throws a `core/no-app` FirebaseException, which is opaque to
+  /// the user.
+  static FirebaseAuth get _auth {
+    if (Firebase.apps.isEmpty) {
+      throw const AuthException(
+        'Firebase is not configured. Add the Firebase Android configuration '
+        'and try again.',
+      );
+    }
+
+    return FirebaseAuth.instance;
+  }
 
   static Future<UserCredential?> signInWithEmail(
     String email,

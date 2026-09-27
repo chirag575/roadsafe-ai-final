@@ -14,6 +14,7 @@ android/key.properties
 # IDE
 .idea/
 .vscode/
+devtools_options.yaml
 
 # Firebase / local configuration
 google-services.json

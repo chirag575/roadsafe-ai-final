@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -9,14 +10,22 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  Timer? _navigationTimer;
 
   @override
   void initState() {
     super.initState();
 
-    Timer(const Duration(seconds: 3), () {
+    _navigationTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, "/login");
     });
+  }
+
+  @override
+  void dispose() {
+    _navigationTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -27,16 +36,13 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
             Icon(
               Icons.verified_user,
               size: 120,
               color: Colors.white,
             ),
-
-            SizedBox(height: 20),
-
-            Text(
+            const SizedBox(height: 20),
+            const Text(
               "RoadSafe AI",
               style: TextStyle(
                 fontSize: 34,
@@ -44,32 +50,23 @@ class _SplashScreenState extends State<SplashScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
-            SizedBox(height: 10),
-
-            Text(
+            const SizedBox(height: 10),
+            const Text(
               "Blind Spot & Pothole Detection",
               style: TextStyle(
                 fontSize: 18,
                 color: Colors.white70,
               ),
             ),
-
-            SizedBox(height: 50),
-
-            CircularProgressIndicator(
+            const SizedBox(height: 50),
+            const CircularProgressIndicator(
               color: Colors.white,
             ),
-
-            SizedBox(height: 60),
-
-            Text(
+            const SizedBox(height: 60),
+            const Text(
               "Powered by Flutter • YOLOv8 • Firebase",
-              style: TextStyle(
-                color: Colors.white60,
-              ),
+              style: TextStyle(color: Colors.white60),
             ),
-
           ],
         ),
       ),
