@@ -49,6 +49,29 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.signInWithGoogle();
+      if (mounted) Navigator.pushReplacementNamed(context, "/home");
+    } on AuthException catch (error) {
+      _showError(error.message);
+    } on FirebaseAuthException catch (error) {
+      _showError(
+        AuthService.getFriendlyMessage(error.code, message: error.message),
+      );
+    } on FirebaseException catch (error) {
+      _showError(
+        AuthService.getFriendlyMessage(error.code, message: error.message),
+      );
+    } catch (error) {
+      _showError('Google sign-in failed. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _forgotPassword() async {
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
@@ -148,16 +171,54 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 15),
               OutlinedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, "/register");
-                },
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        Navigator.pushNamed(context, "/register");
+                      },
                 child: const Text("Create Account"),
               ),
               const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.g_mobiledata),
-                label: const Text("Continue with Google"),
+              Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      "or",
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ),
+                  const Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _signInWithGoogle,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.g_mobiledata),
+                  label: const Text(
+                    "Continue with Google",
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                "New to RoadSafe AI? Create an account first, then sign in.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
             ],
           ),
