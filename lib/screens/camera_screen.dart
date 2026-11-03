@@ -6,8 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/detection_result.dart';
+import '../models/road_report.dart';
 import '../services/imu_service.dart';
 import '../services/notification_service.dart';
+import '../services/report_storage.dart';
+import '../services/voice_alert_service.dart';
 import '../services/yolo_service.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -21,6 +24,7 @@ class _CameraScreenState extends State<CameraScreen>
     with WidgetsBindingObserver {
   final ImuService _imuService = ImuService();
   final YoloService _yoloService = YoloService();
+  final YoloService _vehicleYoloService = YoloService();
   final NotificationService _notificationService = NotificationService();
 
   CameraController? _cameraController;
@@ -30,12 +34,15 @@ class _CameraScreenState extends State<CameraScreen>
   StreamSubscription<ImuData>? _imuSubscription;
 
   List<DetectionResult> _detections = const [];
+  List<DetectionResult> _vehicleDetections = const [];
   bool _processingFrame = false;
+  bool _potholePresent = false;
+  Position? _currentPosition;
 
   String gpsLocation = "Fetching GPS...";
   String gForceValue = "0.0 G";
   String detectionStatus = "Waiting for detection...";
-  String blindSpotStatus = "Monitoring vehicles...";
+  String blindSpotStatus = "Loading vehicle model...";
 
   String cameraStatus = "Starting camera...";
 
@@ -194,6 +201,7 @@ class _CameraScreenState extends State<CameraScreen>
           accuracy: LocationAccuracy.high,
         ),
       );
+      _currentPosition = position;
 
       if (mounted) {
         setState(() {
@@ -212,6 +220,7 @@ class _CameraScreenState extends State<CameraScreen>
         locationSettings: locationSettings,
       ).listen(
         (Position position) {
+          _currentPosition = position;
           if (mounted) {
             setState(() {
               gpsLocation = "${position.latitude.toStringAsFixed(7)}, "
@@ -295,37 +304,85 @@ class _CameraScreenState extends State<CameraScreen>
   Future<void> _initYolo() async {
     try {
       await _yoloService.loadPotholeModel();
+      if (mounted) {
+        setState(() => detectionStatus = "Pothole detector ready");
+      }
     } catch (e) {
       debugPrint("YOLO Error: $e");
-
       if (mounted) {
-        setState(() {
-          detectionStatus = "AI model not available";
-        });
+        setState(() => detectionStatus = "Pothole model unavailable");
       }
+    }
+
+    try {
+      await _vehicleYoloService.loadBlindSpotModel();
+      if (mounted) setState(() => blindSpotStatus = "Vehicle detector ready");
+    } catch (e) {
+      debugPrint("Vehicle model unavailable: $e");
+      if (mounted) setState(() => blindSpotStatus = "AI model not available");
     }
   }
 
   Future<void> _onCameraImage(CameraImage image) async {
-    if (_processingFrame || !cameraReady || !_yoloService.isLoaded) return;
+    if (_processingFrame ||
+        !cameraReady ||
+        (!_yoloService.isLoaded && !_vehicleYoloService.isLoaded)) {
+      return;
+    }
     _processingFrame = true;
     try {
-      final detections = await _yoloService.detect(image);
+      final potholeResults = _yoloService.isLoaded
+          ? await _yoloService.detect(image)
+          : const <DetectionResult>[];
+      final vehicleResults = _vehicleYoloService.isLoaded
+          ? await _vehicleYoloService.detect(image)
+          : const <DetectionResult>[];
       if (!mounted) return;
-      final potholes = detections
+      final potholes = potholeResults
           .where((detection) => detection.type == DetectionType.pothole)
           .toList();
+      if (potholes.isEmpty) {
+        _potholePresent = false;
+      } else if (!_potholePresent) {
+        _potholePresent = true;
+        unawaited(_savePotholeReport(potholes.first));
+        unawaited(VoiceAlertService.speakHazard('Pothole detected ahead'));
+      }
       setState(() {
         _detections = potholes;
-        detectionStatus = potholes.isEmpty
-            ? "No potholes detected"
-            : "Pothole detected (${(potholes.first.confidence * 100).toStringAsFixed(0)}%)"
-                " - ${potholes.first.severity ?? 'Unknown'} severity";
+        _vehicleDetections = vehicleResults;
+        if (_yoloService.isLoaded) {
+          detectionStatus = potholes.isEmpty
+              ? "No potholes detected"
+              : "Pothole detected (${(potholes.first.confidence * 100).toStringAsFixed(0)}% confidence)";
+        }
+        blindSpotStatus = vehicleResults.isEmpty
+            ? "No vehicles detected in camera frame"
+            : "${vehicleResults.first.label} detected in camera frame";
       });
     } catch (error) {
       debugPrint("YOLO frame error: $error");
     } finally {
       _processingFrame = false;
+    }
+  }
+
+  Future<void> _savePotholeReport(DetectionResult detection) async {
+    final position = _currentPosition;
+    final timestamp = DateTime.now();
+    try {
+      await ReportStorage.addReport(
+        RoadReport(
+          id: timestamp.microsecondsSinceEpoch.toString(),
+          label: detection.label,
+          confidence: detection.confidence,
+          timestamp: timestamp,
+          latitude: position?.latitude,
+          longitude: position?.longitude,
+        ),
+      );
+    } catch (error) {
+      debugPrint('Could not save pothole report: $error');
     }
   }
 
@@ -369,6 +426,7 @@ class _CameraScreenState extends State<CameraScreen>
     _gpsSubscription?.cancel();
     _imuSubscription?.cancel();
     _yoloService.dispose();
+    _vehicleYoloService.dispose();
 
     _cameraController?.dispose();
 
@@ -424,6 +482,12 @@ class _CameraScreenState extends State<CameraScreen>
                                   CustomPaint(
                                     painter: _DetectionOverlayPainter(
                                       _detections,
+                                    ),
+                                  ),
+                                if (_vehicleDetections.isNotEmpty)
+                                  CustomPaint(
+                                    painter: _DetectionOverlayPainter(
+                                      _vehicleDetections,
                                     ),
                                   ),
                               ],

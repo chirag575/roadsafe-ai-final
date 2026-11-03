@@ -18,9 +18,7 @@ class ImuData {
 
   double get totalAcceleration {
     return sqrt(
-      (x * x) +
-      (y * y) +
-      (z * z),
+      (x * x) + (y * y) + (z * z),
     );
   }
 
@@ -32,46 +30,32 @@ class ImuData {
 
 class ImuService {
   bool _isInitialized = false;
-  bool _isMonitoring = false;
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
 
   bool get isInitialized => _isInitialized;
-  bool get isMonitoring => _isMonitoring;
 
+  /// Marks the service ready.
+  ///
+  /// The accelerometer plugin needs no explicit start-up call, so this only
+  /// records state; stream errors surface from [getImuStream] instead.
   Future<void> initialize() async {
-    try {
-      // Check if we can access the sensors (not strictly required by API, 
-      // but good to check if we can get a stream)
-      _isInitialized = true;
-      debugPrint('IMU initialized');
-    } catch (e) {
-      debugPrint('IMU error: $e');
-      rethrow;
-    }
+    _isInitialized = true;
+    debugPrint('IMU initialized');
   }
 
+  /// Accelerometer readings, converted to [ImuData].
+  ///
+  /// The caller owns the subscription and must cancel it - see
+  /// `CameraScreen.dispose`.
   Stream<ImuData> getImuStream() {
     return accelerometerEventStream().map((event) => ImuData(
-      x: event.x,
-      y: event.y,
-      z: event.z,
-      timestamp: DateTime.now(),
-    ));
+          x: event.x,
+          y: event.y,
+          z: event.z,
+          timestamp: DateTime.now(),
+        ));
   }
 
-  Future<void> startMonitoring() async {
-    if (!_isInitialized) {
-      await initialize();
-    }
-    _isMonitoring = true;
-    debugPrint('IMU monitoring started');
-  }
-
-  Future<void> stopMonitoring() async {
-    _isMonitoring = false;
-    debugPrint('IMU monitoring stopped');
-  }
-
+  /// Buckets a G-force reading into a severity label.
   String calculateSeverity(double gForce) {
     if (gForce >= 3.5) {
       return 'High';
@@ -86,8 +70,6 @@ class ImuService {
   }
 
   Future<void> dispose() async {
-    await _accelerometerSubscription?.cancel();
-    _isMonitoring = false;
     _isInitialized = false;
     debugPrint('IMU disposed');
   }

@@ -14,8 +14,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   final emailController = TextEditingController();
 
-  final phoneController = TextEditingController();
-
   final passwordController = TextEditingController();
 
   final confirmPasswordController = TextEditingController();
@@ -27,7 +25,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     nameController.dispose();
     emailController.dispose();
-    phoneController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     super.dispose();
@@ -43,13 +40,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await AuthService.createAccount(
         emailController.text,
         passwordController.text,
+        // Previously the name typed here was collected and thrown away.
+        displayName: nameController.text,
       );
       if (mounted) Navigator.pushReplacementNamed(context, "/home");
     } on AuthException catch (error) {
       _showError(error.message);
     } on FirebaseAuthException catch (error) {
-      _showError(AuthService.getFriendlyMessage(error.code));
-    } catch (_) {
+      _showError(
+        AuthService.getFriendlyMessage(error.code, message: error.message),
+      );
+    } on FirebaseException catch (error) {
+      _showError(
+        AuthService.getFriendlyMessage(error.code, message: error.message),
+      );
+    } catch (error, stackTrace) {
+      // Log the real cause instead of hiding it behind a generic message.
+      debugPrint('Registration failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       _showError('Registration failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -59,7 +67,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -92,15 +101,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               decoration: const InputDecoration(
                 labelText: "Email",
                 prefixIcon: Icon(Icons.email),
-              ),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: "Phone Number",
-                prefixIcon: Icon(Icons.phone),
               ),
             ),
             const SizedBox(height: 15),

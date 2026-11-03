@@ -8,6 +8,22 @@ if (file('google-services.json').exists()) {
     apply plugin: 'com.google.gms.google-services'
 }
 
+// Machine-local settings (Flutter SDK path, API keys). `local.properties` is
+// git-ignored, so values such as MAPS_API_KEY never reach source control.
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+// A key passed with -PMAPS_API_KEY=... (or set in android/gradle.properties)
+// still wins over the default, but real keys belong in local.properties.
+def mapsApiKey = localProperties.getProperty('MAPS_API_KEY')
+        ?: project.findProperty('MAPS_API_KEY')
+        ?: "REPLACE_WITH_ANDROID_MAPS_API_KEY"
+
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file('key.properties')
 if (keystorePropertiesFile.exists()) {
@@ -23,11 +39,11 @@ android {
         applicationId = "com.roadsafe.ai.program2"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         manifestPlaceholders = [
-            MAPS_API_KEY: project.findProperty('MAPS_API_KEY') ?: "REPLACE_WITH_ANDROID_MAPS_API_KEY",
+            MAPS_API_KEY: mapsApiKey,
             applicationName: "android.app.Application"
         ]
     }

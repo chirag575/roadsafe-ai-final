@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'services/app_settings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,7 @@ Future<void> main() async {
   // Do not keep the native launch window visible while Firebase starts. Some
   // Android builds without google-services.json fail asynchronously here.
   runApp(const RoadSafeAI());
+  unawaited(AppSettings.initialize());
   unawaited(initializeFirebase());
 }
 

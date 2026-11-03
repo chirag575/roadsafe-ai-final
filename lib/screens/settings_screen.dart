@@ -1,91 +1,70 @@
 import 'package:flutter/material.dart';
 
-class SettingsScreen extends StatefulWidget {
+import '../services/app_settings.dart';
+
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-
-  bool voiceAlert=true;
-  bool vibration=true;
-  bool darkMode=false;
-
-  @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
-      appBar: AppBar(
-        title: const Text("Settings"),
-      ),
-
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-
         children: [
-
-          SwitchListTile(
-
-            title: const Text("Voice Alert"),
-
-            value: voiceAlert,
-
-            onChanged: (value){
-              setState(() {
-                voiceAlert=value;
-              });
-            },
-
+          ValueListenableBuilder<bool>(
+            valueListenable: AppSettings.darkMode,
+            builder: (context, isDark, _) => SwitchListTile(
+              secondary: const Icon(Icons.dark_mode),
+              title: const Text('Dark Mode'),
+              subtitle: const Text('Saved on this device.'),
+              value: isDark,
+              onChanged: AppSettings.setDarkMode,
+            ),
           ),
-
-          SwitchListTile(
-
-            title: const Text("Vibration"),
-
-            value: vibration,
-
-            onChanged: (value){
-              setState(() {
-                vibration=value;
-              });
-            },
-
+          const Divider(),
+          ValueListenableBuilder<bool>(
+            valueListenable: AppSettings.voiceAlerts,
+            builder: (context, enabled, _) => SwitchListTile(
+              secondary: const Icon(Icons.record_voice_over),
+              title: const Text('Spoken hazard alerts'),
+              subtitle: const Text('Speak when a pothole is detected.'),
+              value: enabled,
+              onChanged: AppSettings.setVoiceAlerts,
+            ),
           ),
-
-          SwitchListTile(
-
-            title: const Text("Dark Mode"),
-
-            value: darkMode,
-
-            onChanged: (value){
-              setState(() {
-                darkMode=value;
-              });
-            },
-
+          ValueListenableBuilder<double>(
+            valueListenable: AppSettings.voiceVolume,
+            builder: (context, volume, _) => ListTile(
+              leading: const Icon(Icons.volume_up),
+              title: const Text('Voice alert volume'),
+              subtitle: Slider(
+                value: volume,
+                onChanged: AppSettings.setVoiceVolume,
+                min: 0,
+                max: 1,
+                divisions: 10,
+                label: '${(volume * 100).round()}%',
+              ),
+            ),
           ),
-
-          ListTile(
-            leading: Icon(Icons.language),
-            title: Text("Language"),
-            subtitle: Text("English"),
+          const ListTile(
+            leading: Icon(Icons.info_outline),
+            title: Text('Blind spot distance'),
+            subtitle: Text(
+              'Not measured by this camera model. Use mirrors and direct '
+              'observation; this app does not estimate collision risk.',
+            ),
           ),
-
-          ListTile(
-            leading: Icon(Icons.storage),
-            title: Text("Storage Used"),
-            subtitle: Text("120 MB"),
+          const ListTile(
+            leading: Icon(Icons.cloud_outlined),
+            title: Text('Reports sync'),
+            subtitle: Text(
+              'Reports save offline. Cloud upload needs a configured Firebase '
+              project and a signed-in account.',
+            ),
           ),
-
         ],
-
       ),
-
     );
-
   }
-
 }

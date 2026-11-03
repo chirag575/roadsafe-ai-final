@@ -1,9 +1,130 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_sign_in/google_sign_in.dart';
 
+/// How the active session was established.
+enum AuthMode {
+  /// A real Firebase account (email/password or Google).
+  firebase,
+
+  /// A local demo session created without any account.
+  guest,
+}
+
+/// Who the app currently believes is using it.
+///
+/// The app previously never read `FirebaseAuth.currentUser`; the screens
+/// showed hardcoded placeholder details instead. This object is the single
+/// source of truth so every screen can render real data, and a guest session
+/// can render honest "not signed in" values.
+class AppSession {
+  const AppSession({
+    required this.mode,
+    this.displayName,
+    this.email,
+    this.phoneNumber,
+    this.photoUrl,
+  });
+
+  final AuthMode mode;
+  final String? displayName;
+  final String? email;
+  final String? phoneNumber;
+  final String? photoUrl;
+
+  /// True when no real account backs this session.
+  bool get isGuest => mode == AuthMode.guest;
+
+  /// Primary name to show in the UI.
+  String get label {
+    if (isGuest) return 'Guest';
+    final name = displayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return email ?? 'RoadSafe User';
+  }
+
+  /// Secondary line for the drawer header and profile screen.
+  String get subtitle {
+    if (isGuest) return 'Demo mode - not signed in';
+    return email ?? 'Signed in';
+  }
+}
+
 class AuthService {
+  /// The active session, or `null` when nobody is signed in.
+  ///
+  /// Exposed as a [ValueNotifier] so screens can rebuild when the session
+  /// changes without pulling in a state-management package.
+  static final ValueNotifier<AppSession?> session = ValueNotifier<AppSession?>(
+    null,
+  );
+
+  static AppSession? get currentSession => session.value;
+
+  static bool get isSignedIn => session.value != null;
+
+  static bool get isGuest => session.value?.isGuest ?? false;
+
+  /// Enters the app without an account, for demos and for devices with no
+  /// Firebase configuration.
+  ///
+  /// Nothing is persisted: the session lives for this run only, so a guest
+  /// never inherits another guest's data.
+  static void signInAsGuest() {
+    session.value = const AppSession(mode: AuthMode.guest);
+  }
+
+  /// Clears the session and, for a real account, ends the Firebase session.
+  static Future<void> signOut() async {
+    final wasFirebaseSession = session.value?.mode == AuthMode.firebase;
+    session.value = null;
+
+    if (!wasFirebaseSession || Firebase.apps.isEmpty) return;
+
+    try {
+      await FirebaseAuth.instance.signOut();
+    } on FirebaseAuthException catch (error) {
+      // The local session is already cleared, so a failure here must not
+      // leave the user stuck on a screen they have left.
+      debugPrint(
+        'Firebase sign-out failed (${error.code}): ${error.message}',
+      );
+    }
+  }
+
+  /// Re-establishes a Firebase session after an app restart.
+  ///
+  /// Firebase keeps the user signed in across launches, so without this the
+  /// splash screen would ask a signed-in user to log in again.
+  static Future<void> restoreSession() async {
+    if (session.value != null || Firebase.apps.isEmpty) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    session.value = AppSession(
+      mode: AuthMode.firebase,
+      displayName: user.displayName,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      photoUrl: user.photoURL,
+    );
+  }
+
+  /// Records the account behind a successful Firebase credential exchange.
+  static void _setFirebaseSession(UserCredential credential) {
+    final user = credential.user;
+    session.value = AppSession(
+      mode: AuthMode.firebase,
+      displayName: user?.displayName,
+      email: user?.email,
+      phoneNumber: user?.phoneNumber,
+      photoUrl: user?.photoURL,
+    );
+  }
+
   /// Scopes requested from Google. `email` is what Firebase maps onto the
   /// Firebase user account, `profile` provides the display name and photo.
   static const List<String> _googleScopes = <String>['email', 'profile'];
@@ -48,10 +169,12 @@ class AuthService {
       throw const AuthException('Please enter a valid email address.');
     }
 
-    return _auth.signInWithEmailAndPassword(
+    final credential = await _auth.signInWithEmailAndPassword(
       email: trimmedEmail,
       password: trimmedPassword,
     );
+    _setFirebaseSession(credential);
+    return credential;
   }
 
   static Future<void> sendPasswordResetEmail(String email) async {
@@ -68,10 +191,17 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: trimmedEmail);
   }
 
+  /// Creates an account and records the session.
+  ///
+  /// [displayName] is applied with `updateDisplayName` when supplied, so the
+  /// value typed on the register form is not silently discarded. Phone numbers
+  /// are deliberately not collected: Firebase requires verified numbers, so
+  /// storing an unverified one would be misleading.
   static Future<UserCredential> createAccount(
     String email,
-    String password,
-  ) async {
+    String password, {
+    String? displayName,
+  }) async {
     final trimmedEmail = email.trim();
     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(trimmedEmail)) {
       throw const AuthException('Please enter a valid email address.');
@@ -79,10 +209,29 @@ class AuthService {
     if (password.isEmpty) {
       throw const AuthException('Please enter your password.');
     }
-    return _auth.createUserWithEmailAndPassword(
+    final credential = await _auth.createUserWithEmailAndPassword(
       email: trimmedEmail,
       password: password,
     );
+    _setFirebaseSession(credential);
+
+    final name = displayName?.trim();
+    final user = credential.user;
+    if (name != null && name.isNotEmpty && user != null) {
+      try {
+        await user.updateDisplayName(name);
+        // Re-read the user so the session carries the new display name.
+        _setFirebaseSession(credential);
+      } on FirebaseAuthException catch (error) {
+        // The account exists either way, so surface the reason but do not
+        // fail the registration.
+        debugPrint(
+          'Could not set display name (${error.code}): ${error.message}',
+        );
+      }
+    }
+
+    return credential;
   }
 
   /// Signs in with a Google account and exchanges the result for a Firebase
@@ -126,7 +275,9 @@ class AuthService {
     );
 
     try {
-      return await auth.signInWithCredential(credential);
+      final userCredential = await auth.signInWithCredential(credential);
+      _setFirebaseSession(userCredential);
+      return userCredential;
     } on FirebaseAuthException catch (error) {
       throw AuthException(
         getFriendlyMessage(error.code, message: error.message),

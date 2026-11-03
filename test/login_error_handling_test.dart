@@ -14,7 +14,7 @@ void main() {
       expect(
         AuthService.getFriendlyMessage('user-not-found'),
         'No account found for this email. Tap "Create Account" below '
-            'to register first.',
+        'to register first.',
       );
     });
 
@@ -39,7 +39,8 @@ void main() {
 
     test('distinguishes a credential collision from a missing account', () {
       expect(
-        AuthService.getFriendlyMessage('account-exists-with-different-credential'),
+        AuthService.getFriendlyMessage(
+            'account-exists-with-different-credential'),
         contains('different sign-in method'),
       );
     });

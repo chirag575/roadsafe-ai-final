@@ -95,6 +95,17 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Enters the app as a guest, with no account, email or password.
+  ///
+  /// Useful for demos and for builds without a Firebase configuration. The
+  /// rest of the app treats this session as "not signed in" and shows honest
+  /// placeholders instead of invented account details.
+  Future<void> _continueAsGuest() async {
+    FocusScope.of(context).unfocus();
+    AuthService.signInAsGuest();
+    if (mounted) Navigator.pushReplacementNamed(context, "/home");
+  }
+
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -213,6 +224,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(fontSize: 18),
                   ),
                 ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _continueAsGuest,
+                  icon: const Icon(Icons.person_off_outlined),
+                  label: const Text(
+                    "Continue as Guest (Demo Mode)",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "No account or password needed. Demo data is not saved "
+                "and is cleared when you sign out.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
               const SizedBox(height: 20),
               Text(

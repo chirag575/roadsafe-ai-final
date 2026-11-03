@@ -1,4 +1,6 @@
 # Flutter
+.build-appdata/
+.gradle/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -31,6 +33,19 @@ blindspot/
 
 # Logs
 *.log
+
+# JVM crash dumps written by the Gradle daemon when it runs out of memory.
+# Gradle writes these into whichever directory it was invoked from, which is
+# normally android/ - they are build garbage, never source.
+hs_err_pid*.log
+replay_pid*.log
+
+# Scratch build/analyze output captured during development
+analyze_out.txt
+analyze_rel.txt
+test_out.txt
+test_rel.txt
+build_*.txt
 
 # Generated files
 *.iml

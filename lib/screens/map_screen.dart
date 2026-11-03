@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/gps_service.dart';
+import '../services/report_storage.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -22,6 +23,7 @@ class _MapScreenState extends State<MapScreen> {
   StreamSubscription<Position>? _positionSubscription;
 
   Position? _currentPosition;
+  LatLng? _savedReportsCenter;
 
   bool _loadingLocation = true;
 
@@ -33,15 +35,55 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _startGps();
+    _loadReportMarkers();
   }
 
+  Future<void> _loadReportMarkers() async {
+    final reports = await ReportStorage.getReports();
+    if (!mounted) return;
+    setState(() {
+      final locatedReports = reports
+          .where((report) => report.latitude != null && report.longitude != null)
+          .toList();
+      if (locatedReports.isNotEmpty) {
+        _savedReportsCenter = LatLng(
+          locatedReports.first.latitude!,
+          locatedReports.first.longitude!,
+        );
+      }
+      _markers.removeWhere((marker) => marker.markerId.value.startsWith('report_'));
+      for (final report in reports) {
+        if (report.latitude == null || report.longitude == null) continue;
+        _markers.add(Marker(
+          markerId: MarkerId('report_${report.id}'),
+          position: LatLng(report.latitude!, report.longitude!),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: InfoWindow(
+            title: report.label,
+            snippet: 'Review: ${report.reviewStatus} · '
+                '${(report.confidence * 100).round()}% confidence',
+            onTap: () => Navigator.pushNamed(context, '/reports'),
+          ),
+          onTap: () => Navigator.pushNamed(context, '/reports'),
+        ));
+      }
+    });
+  }
+
+  /// Loads the current position and starts live updates.
+  ///
+  /// Every `setState` is guarded: the permission prompts below are async, so
+  /// the user can leave the screen while a dialog is open.
   Future<void> _startGps() async {
+    if (!mounted) return;
+
     setState(() {
       _loadingLocation = true;
       _locationText = 'Getting GPS location...';
     });
 
     final serviceEnabled = await _gpsService.isLocationServiceEnabled();
+    if (!mounted) return;
 
     if (!serviceEnabled) {
       setState(() {
@@ -52,6 +94,7 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     final permission = await _gpsService.requestPermission();
+    if (!mounted) return;
 
     if (permission == LocationPermission.denied) {
       setState(() {
@@ -72,6 +115,7 @@ class _MapScreenState extends State<MapScreen> {
     try {
       await _positionSubscription?.cancel();
       final position = await _gpsService.getCurrentLocation();
+      if (!mounted) return;
 
       if (position == null) {
         setState(() {
@@ -82,11 +126,14 @@ class _MapScreenState extends State<MapScreen> {
       }
 
       _updateLocation(position);
+      if (!mounted) return;
 
       _positionSubscription = _gpsService.getPositionStream().listen(
             _updateLocation,
           );
     } catch (e) {
+      debugPrint('GPS error: $e');
+      if (!mounted) return;
       setState(() {
         _loadingLocation = false;
         _locationText = 'GPS Error: $e';
@@ -172,8 +219,8 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     final currentPosition = _currentPosition;
     final mapLocation = currentPosition == null
-      ? null
-      : LatLng(currentPosition.latitude, currentPosition.longitude);
+        ? _savedReportsCenter
+        : LatLng(currentPosition.latitude, currentPosition.longitude);
 
     return Scaffold(
       appBar: AppBar(

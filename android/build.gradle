@@ -1,24 +1,20 @@
+// Plugin versions are declared in settings.gradle under `pluginManagement`,
+// so they must not be repeated on the root buildscript classpath: declaring
+// AGP and the Kotlin plugin in both places is the legacy pattern and is what
+// produced "plugin already on the classpath with an unknown version".
 buildscript {
-    ext.kotlin_version = '2.0.21'
-
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.5.2'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        // Still needed here because app/build.gradle applies it by id:
+        //   apply plugin: 'com.google.gms.google-services'
+        // and only does so when google-services.json is present.
         classpath 'com.google.gms:google-services:4.4.2'
     }
 }
-
-ext.flutter = [
-    compileSdkVersion: 35,
-    minSdkVersion: 23,
-    targetSdkVersion: 35,
-    ndkVersion: "27.3.13750724"
-]
 
 allprojects {
     repositories {
