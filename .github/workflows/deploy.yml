@@ -1,0 +1,38 @@
+name: Build and Deploy RoadSafe AI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Verify Flutter Installation
+        run: flutter doctor -v
+
+      - name: Build Android App Bundle (Release)
+        run: flutter build appbundle --release
+        
+      *Verification:* The build process completes successfully and generates an `.aab` bundle inside `build/app/outputs/bundle/release/`.
