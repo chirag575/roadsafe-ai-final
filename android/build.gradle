@@ -2,18 +2,11 @@
 // so they must not be repeated on the root buildscript classpath: declaring
 // AGP and the Kotlin plugin in both places is the legacy pattern and is what
 // produced "plugin already on the classpath with an unknown version".
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
+plugins {
+  // ...
 
-    dependencies {
-        // Still needed here because app/build.gradle applies it by id:
-        //   apply plugin: 'com.google.gms.google-services'
-        // and only does so when google-services.json is present.
-        classpath 'com.google.gms:google-services:4.4.2'
-    }
+  // Add the dependency for the Google services Gradle plugin
+  id "com.google.gms.google-services" version "4.4.2" apply false
 }
 
 allprojects {

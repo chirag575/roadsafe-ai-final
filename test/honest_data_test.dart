@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:roadsafe_ai/screens/blind_spot_screen.dart';
 import 'package:roadsafe_ai/screens/report_screen.dart';
 import 'package:roadsafe_ai/utils/routes.dart';
@@ -69,6 +70,7 @@ void main() {
   group('Reports screen honesty', () {
     testWidgets('shows an empty state instead of invented rows',
         (tester) async {
+      SharedPreferences.setMockInitialValues({});
       await tester.pumpWidget(
         const MaterialApp(home: ReportScreen()),
       );

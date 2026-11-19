@@ -60,7 +60,7 @@ class SettingsScreen extends StatelessWidget {
             title: Text('Reports sync'),
             subtitle: Text(
               'Reports save offline. Cloud upload needs a configured Firebase '
-              project and a signed-in account.',
+              'project and a signed-in account.',
             ),
           ),
         ],

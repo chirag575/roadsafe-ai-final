@@ -90,6 +90,34 @@ class NotificationService {
     );
   }
 
+  Future<void> showDirectionalAlert({
+    required String label,
+    required String position,
+  }) async {
+    if (!_initialized) await initialize();
+
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+      'blind_spot_alerts',
+      'Blind Spot & Object Alerts',
+      channelDescription: 'Alerts when an object or person is detected around the vehicle',
+      importance: Importance.max,
+      priority: Priority.high,
+      ticker: 'ticker',
+      color: Color(0xFF0000FF),
+    );
+
+    const NotificationDetails platformDetails =
+        NotificationDetails(android: androidDetails);
+
+    await _notificationsPlugin.show(
+      2,
+      'WARNING: ${label.toUpperCase()} AT ${position.toUpperCase()}!',
+      'A $label has been detected on your $position.',
+      platformDetails,
+    );
+  }
+
   Future<void> dispose() async {
     _initialized = false;
   }

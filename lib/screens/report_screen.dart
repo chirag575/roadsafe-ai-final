@@ -64,10 +64,12 @@ class _ReportScreenState extends State<ReportScreen> {
   Future<void> _share(RoadReport report) async {
     final location = report.latitude == null || report.longitude == null
         ? 'Location unavailable'
-        : 'Location: ${report.latitude}, ${report.longitude}';
-    final details = '${report.label} · ${report.reviewStatus}\n'
+        : 'Location: ${report.latitude}, ${report.longitude}\n'
+          'Map: https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}';
+    final details = 'RoadSafe AI Report\n'
+        '${report.label} · ${report.reviewStatus}\n'
         'Confidence: ${(report.confidence * 100).round()}%\n'
-        '${_dateLabel(report.timestamp)}\n$location';
+        'Time: ${_dateLabel(report.timestamp)}\n\n$location';
     final photoPath = report.photoPath;
     if (photoPath == null) {
       await Share.share(details);

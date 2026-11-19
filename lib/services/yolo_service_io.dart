@@ -122,8 +122,9 @@ class YoloService {
     final scores = _flatten(outputs[1]!);
     final classes = _flatten(outputs[2]!);
     final count = _flatten(outputs[3]!).first.round().clamp(0, 25).toInt();
-    const vehicleClassIndices = {2, 3, 5, 7}; // car, motorcycle, bus, truck
+    const vehicleClassIndices = {0, 2, 3, 5, 7}; // person, car, motorcycle, bus, truck
     const classNames = {
+      0: 'Person',
       2: 'Car',
       3: 'Motorcycle',
       5: 'Bus',
@@ -274,7 +275,7 @@ class YoloService {
 
       if (channelCount < 5) continue;
       final confidence = value(4);
-      if (confidence < _confidenceThreshold) continue;
+      if (confidence < 0.92) continue; // Require 92%+ confidence for true potholes
 
       var x = value(0);
       var y = value(1);
@@ -294,16 +295,28 @@ class YoloService {
         x = (left - _paddingX) / _inputScale / _sourceWidth + width / 2;
         y = (top - _paddingY) / _inputScale / _sourceHeight + height / 2;
       }
+
+      final boxLeft = (x - width / 2).clamp(0.0, 1.0);
+      final boxTop = (y - height / 2).clamp(0.0, 1.0);
+      final boxWidth = width.clamp(0.0, 1.0);
+      final boxHeight = height.clamp(0.0, 1.0);
+
+      // Strict geometric and road-surface filters (reject sky/horizon, tiny noise, or full-screen false positives)
+      if (boxWidth < 0.04 || boxWidth > 0.75 || boxHeight < 0.04 || boxHeight > 0.75) continue;
+      if (boxTop < 0.15) continue; // Potholes are on the road surface, not in the sky/horizon
+      final aspectRatio = boxWidth / (boxHeight == 0 ? 0.001 : boxHeight);
+      if (aspectRatio < 0.2 || aspectRatio > 5.0) continue;
+
       detections.add(
         DetectionResult(
           id: 'pothole_${DateTime.now().microsecondsSinceEpoch}_$index',
           type: DetectionType.pothole,
           label: 'Pothole',
           confidence: confidence.clamp(0.0, 1.0).toDouble(),
-          x: (x - width / 2).clamp(0.0, 1.0).toDouble(),
-          y: (y - height / 2).clamp(0.0, 1.0).toDouble(),
-          width: width.clamp(0.0, 1.0).toDouble(),
-          height: height.clamp(0.0, 1.0).toDouble(),
+          x: boxLeft,
+          y: boxTop,
+          width: boxWidth,
+          height: boxHeight,
           timestamp: DateTime.now(),
         ),
       );

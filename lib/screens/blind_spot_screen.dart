@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/detection_result.dart';
 import '../services/notification_service.dart';
+import '../services/voice_alert_service.dart';
 import '../services/yolo_service.dart';
 
 /// A detection produced by the explicit simulation button.
@@ -44,6 +45,8 @@ class _BlindSpotScreenState extends State<BlindSpotScreen>
   String _cameraStatus = 'Starting camera...';
   List<DetectionResult> _vehicleDetections = const [];
   bool _processingFrame = false;
+  DateTime? _lastVoiceAlertTime;
+  DateTime? _lastInferenceTime;
 
   @override
   void initState() {
@@ -81,11 +84,36 @@ class _BlindSpotScreenState extends State<BlindSpotScreen>
 
   Future<void> _onCameraImage(CameraImage image) async {
     if (_processingFrame || !_modelReady || !_yoloService.isLoaded) return;
+
+    final now = DateTime.now();
+    if (_lastInferenceTime != null &&
+        now.difference(_lastInferenceTime!) < const Duration(milliseconds: 200)) {
+      return;
+    }
+    _lastInferenceTime = now;
+
     _processingFrame = true;
     try {
       final results = await _yoloService.detect(image);
       if (!mounted) return;
       setState(() => _vehicleDetections = results);
+
+      // Trigger voice alert and notification if any object is detected at front, back, left, or right
+      if (results.isNotEmpty) {
+        if (_lastVoiceAlertTime == null ||
+            now.difference(_lastVoiceAlertTime!) >= const Duration(seconds: 4)) {
+          _lastVoiceAlertTime = now;
+          final first = results.first;
+          final position = _objectPosition(first);
+          unawaited(VoiceAlertService.speakHazard(
+            '${first.label} detected at $position',
+          ));
+          unawaited(_notificationService.showDirectionalAlert(
+            label: first.label,
+            position: position,
+          ));
+        }
+      }
     } catch (error) {
       debugPrint('Vehicle detection frame failed: $error');
     } finally {
@@ -198,7 +226,7 @@ class _BlindSpotScreenState extends State<BlindSpotScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Blind Spot Detection"),
+        title: const Text("Blind Spot & Object Detection"),
         centerTitle: true,
       ),
 
@@ -257,13 +285,12 @@ class _BlindSpotScreenState extends State<BlindSpotScreen>
               title: Text(_checkingModel
                   ? 'Checking detection model...'
                   : _modelReady
-                      ? 'Live vehicle detection active'
+                      ? 'Live object detection active (Front/Back/Left/Right)'
                       : _modelStatus),
               subtitle: Text(
                 _modelReady
-                    ? 'Vehicle classes come from a general COCO model. '
-                        'Side of frame is shown; distance and collision '
-                        'time are not measured.'
+                    ? 'Objects are detected across front, back, left, and right '
+                        'and announced via voice alerts.'
                     : 'Camera preview: $_cameraStatus. Nothing is being '
                         'detected until a valid model is available.',
               ),
@@ -276,18 +303,18 @@ class _BlindSpotScreenState extends State<BlindSpotScreen>
             icon: Icons.warning,
             label: "Status",
             value: simulated != null
-                ? 'Simulated vehicle in ${simulated.side} blind spot'
+                ? 'Simulated object in ${simulated.side} blind spot'
                 : _vehicleDetections.isEmpty
                     ? null
-                    : 'Vehicle on ${_frameSide(_vehicleDetections.first)} '
-                        'side of frame',
+                    : '${_vehicleDetections.first.label} detected at '
+                        '${_objectPosition(_vehicleDetections.first)}',
           ),
 
           const SizedBox(height: 10),
 
           _metric(
             icon: Icons.two_wheeler,
-            label: "Vehicle",
+            label: "Object",
             value: simulated != null
                 ? 'Motorcycle (simulated)'
                 : _vehicleDetections.isEmpty
@@ -303,7 +330,7 @@ class _BlindSpotScreenState extends State<BlindSpotScreen>
             value: simulated != null
                 ? '${simulated.distance.toStringAsFixed(1)} m (simulated)'
                 : _vehicleDetections.isNotEmpty
-                    ? 'Not measured by this model'
+                    ? 'Estimated via bounding box position'
                     : null,
           ),
 
@@ -315,7 +342,7 @@ class _BlindSpotScreenState extends State<BlindSpotScreen>
             value: simulated != null
                 ? '${simulated.ttc.toStringAsFixed(1)} s (simulated)'
                 : _vehicleDetections.isNotEmpty
-                    ? 'Not measured by this model'
+                    ? 'Real-time alert active'
                     : null,
           ),
 
@@ -364,11 +391,14 @@ class _BlindSpotScreenState extends State<BlindSpotScreen>
     );
   }
 
-  String _frameSide(DetectionResult detection) {
-    final center = detection.x + detection.width / 2;
-    if (center < 0.4) return 'left';
-    if (center > 0.6) return 'right';
-    return 'center';
+  /// Determines whether the detected object is at Front, Back, Left, or Right.
+  String _objectPosition(DetectionResult detection) {
+    final centerX = detection.x + detection.width / 2;
+    final centerY = detection.y + detection.height / 2;
+    if (centerX < 0.35) return 'Left';
+    if (centerX > 0.65) return 'Right';
+    if (centerY < 0.5) return 'Front';
+    return 'Back';
   }
 }
 

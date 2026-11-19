@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../models/road_report.dart';
+import 'firebase_bootstrap.dart';
 import 'report_storage.dart';
 
 class ReportSyncService {
@@ -10,6 +12,8 @@ class ReportSyncService {
   /// Uploads pending local reports to the signed-in user's private collection.
   /// Firestore's offline persistence queues writes while disconnected.
   static Future<int> syncPending() async {
+    await FirebaseBootstrap.ready;
+    if (Firebase.apps.isEmpty) return 0;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return 0;
 

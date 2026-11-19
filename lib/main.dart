@@ -1,41 +1,22 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'services/app_settings.dart';
+import 'services/firebase_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   _installErrorHandling();
 
   // Do not keep the native launch window visible while Firebase starts. Some
   // Android builds without google-services.json fail asynchronously here.
   runApp(const RoadSafeAI());
   unawaited(AppSettings.initialize());
-  unawaited(initializeFirebase());
-}
-
-/// Initializes Firebase without blocking the first Flutter frame.
-///
-/// A missing local Android configuration can surface as a PlatformException
-/// rather than a FirebaseException, so both failure modes are handled.
-Future<void> initializeFirebase() async {
-  try {
-    await Firebase.initializeApp();
-    debugPrint('Firebase initialized successfully');
-  } on FirebaseException catch (error) {
-    debugPrint(
-      'Firebase initialization failed (${error.code}): ${error.message}',
-    );
-  } catch (error, stackTrace) {
-    debugPrint('Firebase initialization failed: $error');
-    debugPrintStack(stackTrace: stackTrace);
-  }
+  unawaited(FirebaseBootstrap.ready);
 }
 
 /// Keeps a failed build or an uncaught async error from leaving the user

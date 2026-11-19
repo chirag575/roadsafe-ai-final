@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_sign_in/google_sign_in.dart';
 
+import 'firebase_bootstrap.dart';
+
 /// How the active session was established.
 enum AuthMode {
   /// A real Firebase account (email/password or Google).
@@ -99,6 +101,7 @@ class AuthService {
   /// Firebase keeps the user signed in across launches, so without this the
   /// splash screen would ask a signed-in user to log in again.
   static Future<void> restoreSession() async {
+    await FirebaseBootstrap.ready;
     if (session.value != null || Firebase.apps.isEmpty) return;
 
     final user = FirebaseAuth.instance.currentUser;
@@ -154,6 +157,7 @@ class AuthService {
     String email,
     String password,
   ) async {
+    await FirebaseBootstrap.ready;
     final trimmedEmail = email.trim();
     final trimmedPassword = password.trim();
 
@@ -178,6 +182,7 @@ class AuthService {
   }
 
   static Future<void> sendPasswordResetEmail(String email) async {
+    await FirebaseBootstrap.ready;
     final trimmedEmail = email.trim();
 
     if (trimmedEmail.isEmpty) {
@@ -202,6 +207,7 @@ class AuthService {
     String password, {
     String? displayName,
   }) async {
+    await FirebaseBootstrap.ready;
     final trimmedEmail = email.trim();
     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(trimmedEmail)) {
       throw const AuthException('Please enter a valid email address.');
@@ -241,6 +247,7 @@ class AuthService {
   /// shown, so a missing configuration fails fast instead of letting the user
   /// pick an account and only then failing.
   static Future<UserCredential> signInWithGoogle() async {
+    await FirebaseBootstrap.ready;
     final auth = _auth;
 
     final GoogleSignInAccount? account;
